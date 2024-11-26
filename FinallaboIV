@@ -1,0 +1,170 @@
+import sqlite3
+from datetime import datetime
+
+# Conexión a la base de datos
+conn = sqlite3.connect("club_gestion.db")
+cursor = conn.cursor()
+
+# Crear tablas
+def crear_tablas():
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Personas (
+        id_persona INTEGER PRIMARY KEY AUTOINCREMENT,
+        apellido TEXT NOT NULL,
+        nombre TEXT NOT NULL,
+        dni TEXT UNIQUE NOT NULL,
+        fecha_nacimiento DATE NOT NULL,
+        telefono TEXT NOT NULL
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Domicilios (
+        id_domicilio INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_persona INTEGER NOT NULL,
+        calle TEXT NOT NULL,
+        ciudad TEXT NOT NULL,
+        codigo_postal TEXT NOT NULL,
+        FOREIGN KEY (id_persona) REFERENCES Personas (id_persona)
+    )
+    """)
+    conn.commit()
+
+# CRUD para Personas
+def crear_persona(apellido, nombre, dni, fecha_nacimiento, telefono):
+    try:
+        cursor.execute("""
+        INSERT INTO Personas (apellido, nombre, dni, fecha_nacimiento, telefono)
+        VALUES (?, ?, ?, ?, ?)
+        """, (apellido, nombre, dni, fecha_nacimiento, telefono))
+        conn.commit()
+        print("Persona registrada con éxito.")
+        return cursor.lastrowid
+    except sqlite3.IntegrityError:
+        print("Error: El DNI ingresado ya existe.")
+
+def leer_personas():
+    cursor.execute("SELECT * FROM Personas")
+    return cursor.fetchall()
+
+def actualizar_persona_por_dni(dni, apellido, nombre, fecha_nacimiento, telefono):
+    cursor.execute("""
+    UPDATE Personas
+    SET apellido = ?, nombre = ?, fecha_nacimiento = ?, telefono = ?
+    WHERE dni = ?
+    """, (apellido, nombre, fecha_nacimiento, telefono, dni))
+    conn.commit()
+    print("Persona actualizada con éxito.")
+
+def borrar_persona_por_dni(dni):
+    cursor.execute("""
+    DELETE FROM Domicilios 
+    WHERE id_persona = (SELECT id_persona FROM Personas WHERE dni = ?)
+    """, (dni,))
+    cursor.execute("DELETE FROM Personas WHERE dni = ?", (dni,))
+    conn.commit()
+    print("Persona y domicilios asociados eliminados correctamente.")
+
+# CRUD para Domicilios
+def crear_domicilio(id_persona, calle, ciudad, codigo_postal):
+    cursor.execute("""
+    INSERT INTO Domicilios (id_persona, calle, ciudad, codigo_postal)
+    VALUES (?, ?, ?, ?)
+    """, (id_persona, calle, ciudad, codigo_postal))
+    conn.commit()
+    print("Domicilio registrado con éxito.")
+
+def leer_domicilios():
+    cursor.execute("""
+    SELECT d.id_domicilio, p.apellido || ' ' || p.nombre AS persona, d.calle, d.ciudad, d.codigo_postal
+    FROM Domicilios d
+    JOIN Personas p ON d.id_persona = p.id_persona
+    """)
+    return cursor.fetchall()
+
+def actualizar_domicilio(id_domicilio, calle, ciudad, codigo_postal):
+    cursor.execute("""
+    UPDATE Domicilios
+    SET calle = ?, ciudad = ?, codigo_postal = ?
+    WHERE id_domicilio = ?
+    """, (calle, ciudad, codigo_postal, id_domicilio))
+    conn.commit()
+    print("Domicilio actualizado con éxito.")
+
+# Ordenamientos
+def listar_personas_ordenadas(criterio):
+    query = "SELECT * FROM Personas "
+    if criterio == "1":
+        query += "ORDER BY apellido ASC"
+    elif criterio == "2":
+        query += "ORDER BY id_persona ASC"
+    elif criterio == "3":
+        query += "ORDER BY fecha_nacimiento ASC"
+    cursor.execute(query)
+    return cursor.fetchall()
+
+# Menú interactivo
+def menu():
+    crear_tablas()
+    while True:
+        print("""
+        === MENÚ DE ADMINISTRACIÓN DEL CLUB ===
+        1. Alta de Persona
+        2. Consulta de Personas y Domicilios
+        3. Modificación de Datos
+        4. Baja de Datos
+        5. Ordenamiento de Personas
+        6. Salida
+        """)
+        opcion = input("Selecciona una opción: ")
+
+        if opcion == "1":
+            apellido = input("Apellido: ")
+            nombre = input("Nombre: ")
+            dni = input("DNI: ")
+            fecha_nacimiento = input("Fecha de nacimiento (YYYY-MM-DD): ")
+            telefono = input("Teléfono: ")
+            id_persona = crear_persona(apellido, nombre, dni, fecha_nacimiento, telefono)
+            if id_persona:
+                calle = input("Calle: ")
+                ciudad = input("Ciudad: ")
+                codigo_postal = input("Código Postal: ")
+                crear_domicilio(id_persona, calle, ciudad, codigo_postal)
+        elif opcion == "2":
+            print("\n=== Personas Registradas ===")
+            personas = leer_personas()
+            for persona in personas:
+                print(persona)
+            print("\n=== Domicilios Registrados ===")
+            domicilios = leer_domicilios()
+            for domicilio in domicilios:
+                print(domicilio)
+        elif opcion == "3":
+            dni = input("Ingrese el DNI de la persona a modificar: ")
+            apellido = input("Nuevo Apellido: ")
+            nombre = input("Nuevo Nombre: ")
+            fecha_nacimiento = input("Nueva Fecha de Nacimiento (YYYY-MM-DD): ")
+            telefono = input("Nuevo Teléfono: ")
+            actualizar_persona_por_dni(dni, apellido, nombre, fecha_nacimiento, telefono)
+        elif opcion == "4":
+            dni = input("Ingrese el DNI de la persona a eliminar: ")
+            borrar_persona_por_dni(dni)
+        elif opcion == "5":
+            print("""
+            1. Ordenar por Apellido
+            2. Ordenar por ID
+            3. Ordenar por Fecha de Nacimiento
+            """)
+            criterio = input("Seleccione el criterio de ordenamiento: ")
+            personas = listar_personas_ordenadas(criterio)
+            print("\n=== Personas Ordenadas ===")
+            for persona in personas:
+                print(persona)
+        elif opcion == "6":
+            print("Saliendo del sistema...")
+            break
+        else:
+            print("Opción no válida. Inténtalo de nuevo.")
+
+# Ejecutar el programa
+if __name__ == "__main__":
+    menu()
